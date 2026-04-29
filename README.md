@@ -56,6 +56,11 @@ The API will be available at:
 - `http://localhost:8000/docs`
 
 The compose stack starts PostgreSQL and runs Alembic migrations before starting FastAPI.
+On startup it also creates demo seed data when the shop tables are empty:
+
+- 3 categories
+- 4 products with stock and prices in AFN, CNY, and USD
+- 10 delivery places with delivery fees
 
 ## Structure
 

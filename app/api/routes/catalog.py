@@ -22,6 +22,10 @@ from app.services.telegram import send_order_notification
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
 
+def _enum_value(value: object) -> str:
+    return str(getattr(value, "value", value))
+
+
 @router.get("/categories", response_model=CategoriesPublic)
 def read_public_categories(
     session: SessionDep,
@@ -110,7 +114,7 @@ async def create_public_order(
             "order_id": str(order.id),
             "order_number": order.order_number,
             "total": str(order.total),
-            "currency": order.currency.value,
+            "currency": _enum_value(order.currency),
         }
     )
     return OrderPublic.model_validate(order)

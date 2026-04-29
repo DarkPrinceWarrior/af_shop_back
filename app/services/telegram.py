@@ -4,6 +4,10 @@ from app.core.config import settings
 from app.models import Order
 
 
+def _enum_value(value: object) -> str:
+    return str(getattr(value, "value", value))
+
+
 def _format_order_message(order: Order) -> str:
     lines = [
         f"New order: {order.order_number}",
@@ -14,7 +18,7 @@ def _format_order_message(order: Order) -> str:
         lines.append(f"Telegram: {order.customer_telegram}")
     lines.extend(
         [
-            f"Currency: {order.currency.value}",
+            f"Currency: {_enum_value(order.currency)}",
             f"Subtotal: {order.subtotal}",
             f"Delivery: {order.delivery_fee}",
             f"Total: {order.total}",
