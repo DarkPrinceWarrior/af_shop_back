@@ -25,6 +25,9 @@ from app.models import (
     MediaUploadPublic,
     Message,
     Order,
+    OrderAdminCommentUpdate,
+    OrderCancel,
+    OrderComplete,
     OrderPublic,
     OrdersPublic,
     OrderStatus,
@@ -39,6 +42,7 @@ from app.models import (
     ProductUpdate,
     get_datetime_utc,
 )
+from app.services.orders import cancel_order, complete_order, update_order_status
 from app.services.realtime import order_connection_manager
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -358,21 +362,76 @@ def read_order(
 
 
 @router.patch("/orders/{order_id}/status", response_model=OrderPublic)
-def update_order_status(
+def update_order_status_route(
     session: SessionDep,
-    _admin: SuperuserDep,
+    admin: SuperuserDep,
     order_id: uuid.UUID,
     status_in: OrderStatusUpdate,
 ) -> Order:
     order = session.get(Order, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    order.status = status_in.status
+    return update_order_status(
+        session=session,
+        order=order,
+        new_status=status_in.status,
+        admin_user=admin,
+        admin_comment=status_in.admin_comment,
+    )
+
+
+@router.patch("/orders/{order_id}/comment", response_model=OrderPublic)
+def update_order_admin_comment(
+    session: SessionDep,
+    _admin: SuperuserDep,
+    order_id: uuid.UUID,
+    comment_in: OrderAdminCommentUpdate,
+) -> Order:
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    order.admin_comment = comment_in.admin_comment
     order.updated_at = get_datetime_utc()
     session.add(order)
     session.commit()
     session.refresh(order)
     return order
+
+
+@router.post("/orders/{order_id}/cancel", response_model=OrderPublic)
+def cancel_order_route(
+    session: SessionDep,
+    admin: SuperuserDep,
+    order_id: uuid.UUID,
+    cancel_in: OrderCancel,
+) -> Order:
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return cancel_order(
+        session=session,
+        order=order,
+        admin_user=admin,
+        admin_comment=cancel_in.admin_comment,
+    )
+
+
+@router.post("/orders/{order_id}/complete", response_model=OrderPublic)
+def complete_order_route(
+    session: SessionDep,
+    admin: SuperuserDep,
+    order_id: uuid.UUID,
+    complete_in: OrderComplete,
+) -> Order:
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return complete_order(
+        session=session,
+        order=order,
+        admin_user=admin,
+        admin_comment=complete_in.admin_comment,
+    )
 
 
 @router.websocket("/orders/ws")

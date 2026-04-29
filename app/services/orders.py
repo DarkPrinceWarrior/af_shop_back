@@ -13,7 +13,10 @@ from app.models import (
     OrderItem,
     OrderQuoteItemPublic,
     OrderQuotePublic,
+    OrderStatus,
+    OrderStatusHistory,
     Product,
+    User,
     get_datetime_utc,
 )
 
@@ -171,6 +174,14 @@ def create_order_from_cart(*, session: Session, order_in: OrderCreate) -> Order:
     )
     session.add(order)
     session.flush()
+    session.add(
+        OrderStatusHistory(
+            order_id=order.id,
+            old_status=None,
+            new_status=OrderStatus.new,
+            comment="Order created",
+        )
+    )
 
     for item_data in order_items_data:
         session.add(OrderItem(order_id=order.id, **item_data))
@@ -178,3 +189,76 @@ def create_order_from_cart(*, session: Session, order_in: OrderCreate) -> Order:
     session.commit()
     session.refresh(order)
     return order
+
+
+def update_order_status(
+    *,
+    session: Session,
+    order: Order,
+    new_status: OrderStatus,
+    admin_user: User,
+    admin_comment: str | None = None,
+) -> Order:
+    old_status = order.status
+    order.status = new_status
+    if admin_comment is not None:
+        order.admin_comment = admin_comment
+    order.updated_at = get_datetime_utc()
+    session.add(order)
+    session.add(
+        OrderStatusHistory(
+            order_id=order.id,
+            old_status=old_status,
+            new_status=new_status,
+            comment=admin_comment,
+            changed_by_user_id=admin_user.id,
+        )
+    )
+    session.commit()
+    session.refresh(order)
+    return order
+
+
+def cancel_order(
+    *,
+    session: Session,
+    order: Order,
+    admin_user: User,
+    admin_comment: str | None = None,
+) -> Order:
+    if order.status == OrderStatus.completed:
+        raise HTTPException(status_code=409, detail="Completed order cannot be cancelled")
+
+    if order.stock_returned_at is None:
+        for item in order.items:
+            product = session.get(Product, item.product_id)
+            if product:
+                product.stock_quantity += item.quantity
+                session.add(product)
+        order.stock_returned_at = get_datetime_utc()
+
+    return update_order_status(
+        session=session,
+        order=order,
+        new_status=OrderStatus.cancelled,
+        admin_user=admin_user,
+        admin_comment=admin_comment,
+    )
+
+
+def complete_order(
+    *,
+    session: Session,
+    order: Order,
+    admin_user: User,
+    admin_comment: str | None = None,
+) -> Order:
+    if order.status == OrderStatus.cancelled:
+        raise HTTPException(status_code=409, detail="Cancelled order cannot be completed")
+    return update_order_status(
+        session=session,
+        order=order,
+        new_status=OrderStatus.completed,
+        admin_user=admin_user,
+        admin_comment=admin_comment,
+    )

@@ -347,6 +347,11 @@ class Order(OrderBase, table=True):
         index=True,
         sa_type=String(length=32),  # type: ignore
     )
+    admin_comment: str | None = Field(default=None, max_length=1000)
+    stock_returned_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
     subtotal: Decimal = Field(ge=0, sa_type=Numeric(12, 2))  # type: ignore
     delivery_fee: Decimal = Field(ge=0, sa_type=Numeric(12, 2))  # type: ignore
     total: Decimal = Field(ge=0, sa_type=Numeric(12, 2))  # type: ignore
@@ -360,6 +365,9 @@ class Order(OrderBase, table=True):
     )
     delivery_place: DeliveryPlace | None = Relationship(back_populates="orders")
     items: list["OrderItem"] = Relationship(back_populates="order", cascade_delete=True)
+    status_history: list["OrderStatusHistory"] = Relationship(
+        back_populates="order", cascade_delete=True
+    )
 
 
 class OrderItemBase(SQLModel):
@@ -391,6 +399,32 @@ class OrderCreate(OrderBase):
     items: list[OrderItemCreate] = Field(min_length=1)
 
 
+class OrderStatusHistoryBase(SQLModel):
+    old_status: OrderStatus | None = Field(
+        default=None,
+        sa_type=String(length=32),  # type: ignore
+    )
+    new_status: OrderStatus = Field(
+        sa_type=String(length=32),  # type: ignore
+    )
+    comment: str | None = Field(default=None, max_length=1000)
+
+
+class OrderStatusHistory(OrderStatusHistoryBase, table=True):
+    __tablename__ = "order_status_history"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    order_id: uuid.UUID = Field(
+        foreign_key="shop_order.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    changed_by_user_id: uuid.UUID | None = Field(default=None, foreign_key="user.id")
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    order: Order | None = Relationship(back_populates="status_history")
+
+
 class OrderQuoteItemPublic(SQLModel):
     product_id: uuid.UUID
     product_name: str
@@ -418,16 +452,28 @@ class OrderItemPublic(SQLModel):
     line_total: Decimal
 
 
+class OrderStatusHistoryPublic(SQLModel):
+    id: uuid.UUID
+    old_status: OrderStatus | None = None
+    new_status: OrderStatus
+    comment: str | None = None
+    changed_by_user_id: uuid.UUID | None = None
+    created_at: datetime | None = None
+
+
 class OrderPublic(OrderBase):
     id: uuid.UUID
     order_number: str
     status: OrderStatus
+    admin_comment: str | None = None
+    stock_returned_at: datetime | None = None
     subtotal: Decimal
     delivery_fee: Decimal
     total: Decimal
     created_at: datetime | None = None
     updated_at: datetime | None = None
     items: list[OrderItemPublic] = []
+    status_history: list[OrderStatusHistoryPublic] = []
 
 
 class OrdersPublic(SQLModel):
@@ -447,6 +493,19 @@ class AdminDashboardPublic(SQLModel):
 
 class OrderStatusUpdate(SQLModel):
     status: OrderStatus
+    admin_comment: str | None = Field(default=None, max_length=1000)
+
+
+class OrderAdminCommentUpdate(SQLModel):
+    admin_comment: str | None = Field(default=None, max_length=1000)
+
+
+class OrderCancel(SQLModel):
+    admin_comment: str | None = Field(default=None, max_length=1000)
+
+
+class OrderComplete(SQLModel):
+    admin_comment: str | None = Field(default=None, max_length=1000)
 
 
 class MediaUploadPublic(SQLModel):
