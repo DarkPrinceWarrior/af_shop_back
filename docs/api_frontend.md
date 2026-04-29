@@ -154,6 +154,24 @@ GET /api/v1/admin/orders?skip=0&limit=100
 Authorization: Bearer <token>
 ```
 
+Supported query parameters:
+
+- `skip`: pagination offset, default `0`;
+- `limit`: page size from `1` to `100`, default `100`;
+- `status`: `new`, `accepted`, `preparing`, `delivering`, `completed`, `cancelled`;
+- `q`: search by order number, customer name, phone, or Telegram;
+- `date_from`: include orders created from this date, format `YYYY-MM-DD`;
+- `date_to`: include orders created through this date, format `YYYY-MM-DD`.
+
+Orders are sorted newest first.
+
+Example:
+
+```http
+GET /api/v1/admin/orders?status=accepted&q=%4093700000000&date_from=2026-04-01&date_to=2026-04-30
+Authorization: Bearer <token>
+```
+
 Detail:
 
 ```http

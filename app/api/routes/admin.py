@@ -1,10 +1,12 @@
 import shutil
 import uuid
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, UploadFile, WebSocket
 from fastapi.websockets import WebSocketDisconnect
+from sqlalchemy import or_
 from sqlmodel import Session, col, func, select
 
 from app.api.deps import SessionDep, SuperuserDep, get_user_from_token
@@ -338,10 +340,38 @@ def read_orders(
     _admin: SuperuserDep,
     skip: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    status: Annotated[OrderStatus | None, Query()] = None,
+    q: Annotated[str | None, Query(max_length=128)] = None,
+    date_from: Annotated[date | None, Query()] = None,
+    date_to: Annotated[date | None, Query()] = None,
 ) -> OrdersPublic:
-    count = session.exec(select(func.count()).select_from(Order)).one()
+    filters = []
+    if status is not None:
+        filters.append(Order.status == status)
+    stripped_q = q.strip() if q else None
+    if stripped_q:
+        query = f"%{stripped_q}%"
+        filters.append(
+            or_(
+                col(Order.order_number).ilike(query),
+                col(Order.customer_name).ilike(query),
+                col(Order.customer_phone).ilike(query),
+                col(Order.customer_telegram).ilike(query),
+            )
+        )
+    if date_from is not None:
+        filters.append(
+            Order.created_at >= datetime.combine(date_from, time.min, timezone.utc)
+        )
+    if date_to is not None:
+        filters.append(
+            Order.created_at <= datetime.combine(date_to, time.max, timezone.utc)
+        )
+
+    count = session.exec(select(func.count()).select_from(Order).where(*filters)).one()
     statement = (
         select(Order)
+        .where(*filters)
         .order_by(col(Order.created_at).desc())
         .offset(skip)
         .limit(limit)

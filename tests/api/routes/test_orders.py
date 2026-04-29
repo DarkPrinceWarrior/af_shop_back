@@ -72,11 +72,14 @@ def _order_payload(
     product: Product,
     delivery_place: DeliveryPlace,
     quantity: int = 2,
+    customer_name: str = "Workflow Test Customer",
+    customer_phone: str = "+93000000000",
+    customer_telegram: str = "@workflow_test",
 ) -> dict[str, object]:
     return {
-        "customer_name": "Workflow Test Customer",
-        "customer_phone": "+93000000000",
-        "customer_telegram": "@workflow_test",
+        "customer_name": customer_name,
+        "customer_phone": customer_phone,
+        "customer_telegram": customer_telegram,
         "customer_comment": "Test order",
         "language": "en",
         "currency": "AFN",
@@ -96,6 +99,9 @@ def _create_order(
     product: Product,
     delivery_place: DeliveryPlace,
     quantity: int = 2,
+    customer_name: str = "Workflow Test Customer",
+    customer_phone: str = "+93000000000",
+    customer_telegram: str = "@workflow_test",
 ) -> dict[str, object]:
     with patch("app.api.routes.catalog.send_order_notification"):
         response = client.post(
@@ -104,6 +110,9 @@ def _create_order(
                 product=product,
                 delivery_place=delivery_place,
                 quantity=quantity,
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                customer_telegram=customer_telegram,
             ),
         )
     assert response.status_code == 200
@@ -251,3 +260,94 @@ def test_cancelled_order_cannot_be_completed(
         json={"admin_comment": "Cannot complete"},
     )
     assert complete_response.status_code == 409
+
+
+def test_admin_orders_can_filter_by_status_and_search(
+    client: TestClient,
+    db: Session,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    suffix = uuid.uuid4().hex
+    product, delivery_place = _create_shop_data(db, stock_quantity=10)
+    matching_order = _create_order(
+        client,
+        product=product,
+        delivery_place=delivery_place,
+        quantity=1,
+        customer_name=f"Accepted Customer {suffix}",
+        customer_phone=f"+9300{suffix[:8]}",
+        customer_telegram=f"@accepted_{suffix[:12]}",
+    )
+    other_order = _create_order(
+        client,
+        product=product,
+        delivery_place=delivery_place,
+        quantity=1,
+        customer_name=f"New Customer {suffix}",
+        customer_phone=f"+9311{suffix[:8]}",
+        customer_telegram=f"@new_{suffix[:12]}",
+    )
+
+    response = client.patch(
+        f"{settings.API_V1_STR}/admin/orders/{matching_order['id']}/status",
+        headers=superuser_token_headers,
+        json={"status": "accepted", "admin_comment": "Confirmed"},
+    )
+    assert response.status_code == 200
+
+    filtered_response = client.get(
+        f"{settings.API_V1_STR}/admin/orders",
+        headers=superuser_token_headers,
+        params={"status": "accepted", "q": suffix[:8]},
+    )
+    assert filtered_response.status_code == 200
+    filtered_orders = filtered_response.json()
+    assert filtered_orders["count"] == 1
+    assert filtered_orders["data"][0]["id"] == matching_order["id"]
+    assert filtered_orders["data"][0]["id"] != other_order["id"]
+
+
+def test_admin_orders_are_sorted_newest_first_and_filter_by_date(
+    client: TestClient,
+    db: Session,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    suffix = uuid.uuid4().hex
+    product, delivery_place = _create_shop_data(db, stock_quantity=10)
+    older_order = _create_order(
+        client,
+        product=product,
+        delivery_place=delivery_place,
+        quantity=1,
+        customer_name=f"Sort Customer {suffix}",
+        customer_phone=f"+9322{suffix[:8]}",
+        customer_telegram=f"@sort_old_{suffix[:10]}",
+    )
+    newer_order = _create_order(
+        client,
+        product=product,
+        delivery_place=delivery_place,
+        quantity=1,
+        customer_name=f"Sort Customer {suffix}",
+        customer_phone=f"+9333{suffix[:8]}",
+        customer_telegram=f"@sort_new_{suffix[:10]}",
+    )
+    order_date = str(newer_order["created_at"])[:10]
+
+    response = client.get(
+        f"{settings.API_V1_STR}/admin/orders",
+        headers=superuser_token_headers,
+        params={"q": suffix, "date_from": order_date, "date_to": order_date},
+    )
+    assert response.status_code == 200
+    orders = response.json()
+    order_ids = [order["id"] for order in orders["data"]]
+    assert order_ids[:2] == [newer_order["id"], older_order["id"]]
+
+    empty_response = client.get(
+        f"{settings.API_V1_STR}/admin/orders",
+        headers=superuser_token_headers,
+        params={"q": suffix, "date_to": "2000-01-01"},
+    )
+    assert empty_response.status_code == 200
+    assert empty_response.json()["count"] == 0
