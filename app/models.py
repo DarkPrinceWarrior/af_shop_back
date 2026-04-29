@@ -273,6 +273,54 @@ class DeliveryPlacesPublic(SQLModel):
     count: int
 
 
+class CatalogCategoryPublic(SQLModel):
+    id: uuid.UUID
+    name: str
+    sort_order: int
+    is_active: bool
+
+
+class CatalogProductImagePublic(SQLModel):
+    id: uuid.UUID
+    image_path: str
+    alt: str | None = None
+    sort_order: int
+
+
+class CatalogProductPublic(SQLModel):
+    id: uuid.UUID
+    category_id: uuid.UUID
+    sku: str | None = None
+    name: str
+    description: str | None = None
+    price: Decimal
+    currency: CurrencyCode
+    stock_quantity: int
+    is_active: bool
+    images: list[CatalogProductImagePublic] = []
+
+
+class CatalogDeliveryPlacePublic(SQLModel):
+    id: uuid.UUID
+    name: str
+    description: str | None = None
+    image_path: str
+    delivery_fee: Decimal
+    currency: CurrencyCode
+    sort_order: int
+    is_active: bool
+
+
+class CatalogBootstrapPublic(SQLModel):
+    language: LanguageCode
+    currency: CurrencyCode
+    languages: list[LanguageCode]
+    currencies: list[CurrencyCode]
+    categories: list[CatalogCategoryPublic]
+    products: list[CatalogProductPublic]
+    delivery_places: list[CatalogDeliveryPlacePublic]
+
+
 class OrderBase(SQLModel):
     customer_name: str = Field(min_length=1, max_length=255)
     customer_phone: str = Field(min_length=3, max_length=64)
@@ -343,6 +391,22 @@ class OrderCreate(OrderBase):
     items: list[OrderItemCreate] = Field(min_length=1)
 
 
+class OrderQuoteItemPublic(SQLModel):
+    product_id: uuid.UUID
+    product_name: str
+    quantity: int
+    unit_price: Decimal
+    line_total: Decimal
+
+
+class OrderQuotePublic(SQLModel):
+    currency: CurrencyCode
+    subtotal: Decimal
+    delivery_fee: Decimal
+    total: Decimal
+    items: list[OrderQuoteItemPublic]
+
+
 class OrderItemPublic(SQLModel):
     id: uuid.UUID
     product_id: uuid.UUID
@@ -369,6 +433,16 @@ class OrderPublic(OrderBase):
 class OrdersPublic(SQLModel):
     data: list[OrderPublic]
     count: int
+
+
+class AdminDashboardPublic(SQLModel):
+    products_count: int
+    active_products_count: int
+    low_stock_products_count: int
+    delivery_places_count: int
+    active_delivery_places_count: int
+    new_orders_count: int
+    active_orders_count: int
 
 
 class OrderStatusUpdate(SQLModel):

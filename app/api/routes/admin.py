@@ -11,6 +11,7 @@ from app.api.deps import SessionDep, SuperuserDep, get_user_from_token
 from app.core.config import settings
 from app.core.db import engine
 from app.models import (
+    AdminDashboardPublic,
     CategoriesPublic,
     Category,
     CategoryCreate,
@@ -26,6 +27,7 @@ from app.models import (
     Order,
     OrderPublic,
     OrdersPublic,
+    OrderStatus,
     OrderStatusUpdate,
     Product,
     ProductCreate,
@@ -57,6 +59,53 @@ def _save_upload_file(*, upload_file: UploadFile, folder: str) -> str:
     with target_path.open("wb") as buffer:
         shutil.copyfileobj(upload_file.file, buffer)
     return f"{settings.MEDIA_URL.rstrip('/')}/{folder}/{filename}"
+
+
+@router.get("/dashboard", response_model=AdminDashboardPublic)
+def read_dashboard(session: SessionDep, _admin: SuperuserDep) -> AdminDashboardPublic:
+    products_count = session.exec(select(func.count()).select_from(Product)).one()
+    active_products_count = session.exec(
+        select(func.count()).select_from(Product).where(Product.is_active)
+    ).one()
+    low_stock_products_count = session.exec(
+        select(func.count())
+        .select_from(Product)
+        .where(Product.stock_quantity <= 5)
+    ).one()
+    delivery_places_count = session.exec(
+        select(func.count()).select_from(DeliveryPlace)
+    ).one()
+    active_delivery_places_count = session.exec(
+        select(func.count())
+        .select_from(DeliveryPlace)
+        .where(DeliveryPlace.is_active)
+    ).one()
+    new_orders_count = session.exec(
+        select(func.count()).select_from(Order).where(Order.status == OrderStatus.new)
+    ).one()
+    active_orders_count = session.exec(
+        select(func.count())
+        .select_from(Order)
+        .where(
+            col(Order.status).in_(
+                [
+                    OrderStatus.new,
+                    OrderStatus.accepted,
+                    OrderStatus.preparing,
+                    OrderStatus.delivering,
+                ]
+            )
+        )
+    ).one()
+    return AdminDashboardPublic(
+        products_count=products_count,
+        active_products_count=active_products_count,
+        low_stock_products_count=low_stock_products_count,
+        delivery_places_count=delivery_places_count,
+        active_delivery_places_count=active_delivery_places_count,
+        new_orders_count=new_orders_count,
+        active_orders_count=active_orders_count,
+    )
 
 
 @router.post("/media/images", response_model=MediaUploadPublic)
@@ -294,6 +343,18 @@ def read_orders(
         .limit(limit)
     )
     return OrdersPublic(data=session.exec(statement).all(), count=count)
+
+
+@router.get("/orders/{order_id}", response_model=OrderPublic)
+def read_order(
+    session: SessionDep,
+    _admin: SuperuserDep,
+    order_id: uuid.UUID,
+) -> Order:
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
 
 
 @router.patch("/orders/{order_id}/status", response_model=OrderPublic)

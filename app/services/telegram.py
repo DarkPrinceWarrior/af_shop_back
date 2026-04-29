@@ -1,7 +1,13 @@
+import logging
+
 import httpx
 
 from app.core.config import settings
 from app.models import Order
+
+logger = logging.getLogger(__name__)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def _enum_value(value: object) -> str:
@@ -36,6 +42,7 @@ def _format_order_message(order: Order) -> str:
 
 def send_order_notification(order: Order) -> None:
     if not settings.TELEGRAM_BOT_TOKEN or not settings.TELEGRAM_OWNER_CHAT_ID:
+        logger.info("Telegram notification skipped: settings are not configured")
         return
 
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -45,6 +52,17 @@ def send_order_notification(order: Order) -> None:
     }
     try:
         with httpx.Client(timeout=10) as client:
-            client.post(url, json=payload).raise_for_status()
-    except httpx.HTTPError:
-        return
+            response = client.post(url, json=payload)
+            response.raise_for_status()
+        logger.info("Telegram order notification sent for %s", order.order_number)
+    except httpx.HTTPStatusError as error:
+        logger.warning(
+            "Telegram order notification failed for %s with status %s",
+            order.order_number,
+            error.response.status_code,
+        )
+    except httpx.RequestError:
+        logger.warning(
+            "Telegram order notification failed for %s due to request error",
+            order.order_number,
+        )
