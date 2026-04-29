@@ -1,0 +1,60 @@
+{
+  "categories": [
+    {
+      "name_en": "Groceries",
+      "name_ps": "خوراکي توکي",
+      "name_zh_cn": "食品杂货",
+      "sort_order": 10,
+      "is_active": true
+    },
+    {
+      "name_en": "Household",
+      "name_ps": "د کور توکي",
+      "name_zh_cn": "家居用品",
+      "sort_order": 20,
+      "is_active": true
+    }
+  ],
+  "delivery_places": [
+    {
+      "name_en": "Camp 1",
+      "name_ps": "کمپ ۱",
+      "name_zh_cn": "1号营地",
+      "description_en": "Delivery point for Camp 1",
+      "description_ps": "د کمپ ۱ د سپارلو ځای",
+      "description_zh_cn": "1号营地送货点",
+      "image_path": "/media/delivery-places/camp-1.jpg",
+      "fee_afn": "80.00",
+      "fee_cny": "6.00",
+      "fee_usd": "1.00",
+      "sort_order": 1,
+      "is_active": true
+    }
+  ],
+  "products": [
+    {
+      "category_name_en": "Groceries",
+      "name_en": "Sunflower Oil 1L",
+      "name_ps": "د لمر ګل غوړي ۱ لیتر",
+      "name_zh_cn": "葵花籽油1升",
+      "description_en": "Cooking oil for daily use.",
+      "description_ps": "د ورځني پخلي لپاره غوړي.",
+      "description_zh_cn": "日常烹饪用油。",
+      "sku": "OIL-1L",
+      "stock_quantity": 40,
+      "is_active": true,
+      "price_afn": "120.00",
+      "price_cny": "10.00",
+      "price_usd": "1.50",
+      "images": [
+        {
+          "image_path": "/media/products/oil-1l.jpg",
+          "alt_en": "Sunflower Oil 1L",
+          "alt_ps": "د لمر ګل غوړي ۱ لیتر",
+          "alt_zh_cn": "葵花籽油1升",
+          "sort_order": 1
+        }
+      ]
+    }
+  ]
+}

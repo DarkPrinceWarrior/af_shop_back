@@ -90,6 +90,9 @@ On startup it also creates demo seed data when the shop tables are empty:
 - 4 products with stock and prices in AFN, CNY, and USD
 - 10 delivery places with delivery fees
 
+Custom catalog seed data can be loaded from `seed/shop_seed.json`.
+See `docs/seed_data.md`.
+
 Check containers:
 
 ```bash

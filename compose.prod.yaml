@@ -46,6 +46,7 @@ services:
       MEDIA_URL: ${MEDIA_URL:-/media}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_OWNER_CHAT_ID: ${TELEGRAM_OWNER_CHAT_ID:-}
+      SHOP_SEED_FILE: ${SHOP_SEED_FILE:-}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:

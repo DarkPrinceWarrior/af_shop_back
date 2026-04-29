@@ -27,6 +27,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-dev --no-install-project
 
 COPY ./scripts /app/scripts
+COPY ./seed /app/seed
 
 COPY ./pyproject.toml ./alembic.ini /app/
 

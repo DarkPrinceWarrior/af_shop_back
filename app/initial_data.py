@@ -1,5 +1,9 @@
+import json
 import logging
+import os
 from decimal import Decimal
+from pathlib import Path
+from typing import Any
 
 from sqlmodel import Session, select
 
@@ -8,6 +12,126 @@ from app.models import Category, DeliveryPlace, Product, ProductImage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _decimal(value: str | int | float) -> Decimal:
+    return Decimal(str(value))
+
+
+def _load_external_seed() -> dict[str, Any] | None:
+    seed_file = os.getenv("SHOP_SEED_FILE") or "seed/shop_seed.json"
+    seed_path = Path(seed_file)
+    if not seed_path.exists():
+        return None
+    logger.info("Loading shop seed data from %s", seed_path)
+    with seed_path.open(encoding="utf-8") as file:
+        data = json.load(file)
+    if not isinstance(data, dict):
+        raise ValueError("Shop seed file root must be a JSON object")
+    return data
+
+
+def _seed_categories_from_payload(
+    session: Session, seed_data: dict[str, Any]
+) -> dict[str, Category]:
+    existing = session.exec(select(Category)).first()
+    if existing:
+        categories = session.exec(select(Category)).all()
+        return {category.name_en: category for category in categories}
+
+    categories = []
+    for item in seed_data.get("categories", []):
+        categories.append(
+            Category(
+                name_en=item["name_en"],
+                name_ps=item["name_ps"],
+                name_zh_cn=item["name_zh_cn"],
+                sort_order=item.get("sort_order", 0),
+                is_active=item.get("is_active", True),
+            )
+        )
+    for category in categories:
+        session.add(category)
+    session.commit()
+    return {category.name_en: category for category in categories}
+
+
+def _seed_delivery_places_from_payload(
+    session: Session, seed_data: dict[str, Any]
+) -> None:
+    existing = session.exec(select(DeliveryPlace)).first()
+    if existing:
+        return
+
+    for item in seed_data.get("delivery_places", []):
+        session.add(
+            DeliveryPlace(
+                name_en=item["name_en"],
+                name_ps=item["name_ps"],
+                name_zh_cn=item["name_zh_cn"],
+                description_en=item.get("description_en"),
+                description_ps=item.get("description_ps"),
+                description_zh_cn=item.get("description_zh_cn"),
+                image_path=item["image_path"],
+                fee_afn=_decimal(item["fee_afn"]),
+                fee_cny=_decimal(item["fee_cny"]),
+                fee_usd=_decimal(item["fee_usd"]),
+                sort_order=item.get("sort_order", 0),
+                is_active=item.get("is_active", True),
+            )
+        )
+    session.commit()
+
+
+def _seed_products_from_payload(
+    session: Session,
+    seed_data: dict[str, Any],
+    categories: dict[str, Category],
+) -> None:
+    existing = session.exec(select(Product)).first()
+    if existing:
+        return
+
+    for item in seed_data.get("products", []):
+        category_name = item["category_name_en"]
+        category = categories.get(category_name)
+        if not category:
+            raise ValueError(f"Unknown product category: {category_name}")
+        product = Product(
+            name_en=item["name_en"],
+            name_ps=item["name_ps"],
+            name_zh_cn=item["name_zh_cn"],
+            description_en=item.get("description_en"),
+            description_ps=item.get("description_ps"),
+            description_zh_cn=item.get("description_zh_cn"),
+            sku=item.get("sku"),
+            category_id=category.id,
+            stock_quantity=item.get("stock_quantity", 0),
+            is_active=item.get("is_active", True),
+            price_afn=_decimal(item["price_afn"]),
+            price_cny=_decimal(item["price_cny"]),
+            price_usd=_decimal(item["price_usd"]),
+        )
+        session.add(product)
+        session.flush()
+        for image in item.get("images", []):
+            session.add(
+                ProductImage(
+                    product_id=product.id,
+                    image_path=image["image_path"],
+                    alt_en=image.get("alt_en", product.name_en),
+                    alt_ps=image.get("alt_ps", product.name_ps),
+                    alt_zh_cn=image.get("alt_zh_cn", product.name_zh_cn),
+                    sort_order=image.get("sort_order", 0),
+                )
+            )
+    session.commit()
+
+
+def _seed_shop_data_from_payload(session: Session, seed_data: dict[str, Any]) -> None:
+    categories = _seed_categories_from_payload(session, seed_data)
+    _seed_delivery_places_from_payload(session, seed_data)
+    _seed_products_from_payload(session, seed_data, categories)
 
 
 def _seed_categories(session: Session) -> dict[str, Category]:
@@ -147,6 +271,11 @@ def _seed_products(session: Session, categories: dict[str, Category]) -> None:
 
 
 def seed_shop_data(session: Session) -> None:
+    seed_data = _load_external_seed()
+    if seed_data is not None:
+        _seed_shop_data_from_payload(session, seed_data)
+        return
+
     categories = _seed_categories(session)
     _seed_delivery_places(session)
     _seed_products(session, categories)
