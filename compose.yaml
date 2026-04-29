@@ -1,0 +1,62 @@
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-shop_meraj}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changethis}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PROJECT_NAME: ${PROJECT_NAME:-Shop Meraj}
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      FRONTEND_HOST: ${FRONTEND_HOST:-http://localhost:5173}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost,http://localhost:5173}
+      SECRET_KEY: ${SECRET_KEY:-changethis}
+      FIRST_SUPERUSER: ${FIRST_SUPERUSER:-admin@example.com}
+      FIRST_SUPERUSER_PASSWORD: ${FIRST_SUPERUSER_PASSWORD:-changethis}
+      POSTGRES_SERVER: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-shop_meraj}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changethis}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAILS_FROM_EMAIL: ${EMAILS_FROM_EMAIL:-info@example.com}
+      SMTP_TLS: ${SMTP_TLS:-True}
+      SMTP_SSL: ${SMTP_SSL:-False}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      MEDIA_ROOT: /app/media
+      MEDIA_URL: /media
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_OWNER_CHAT_ID: ${TELEGRAM_OWNER_CHAT_ID:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      - media_data:/app/media
+    command:
+      - bash
+      - -c
+      - bash scripts/prestart.sh && fastapi run --host 0.0.0.0 --port 8000 app/main.py
+
+volumes:
+  postgres_data:
+  media_data:
