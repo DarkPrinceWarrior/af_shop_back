@@ -3,11 +3,9 @@ services:
     image: postgres:17
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-shop_meraj}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changethis}
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -25,17 +23,17 @@ services:
         condition: service_healthy
     environment:
       PROJECT_NAME: ${PROJECT_NAME:-Shop Meraj}
-      ENVIRONMENT: ${ENVIRONMENT:-local}
-      FRONTEND_HOST: ${FRONTEND_HOST:-http://localhost:5173}
-      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost,http://localhost:5173}
-      SECRET_KEY: ${SECRET_KEY:-changethis}
-      FIRST_SUPERUSER: ${FIRST_SUPERUSER:-admin@example.com}
-      FIRST_SUPERUSER_PASSWORD: ${FIRST_SUPERUSER_PASSWORD:-changethis}
+      ENVIRONMENT: production
+      FRONTEND_HOST: ${FRONTEND_HOST:?Set FRONTEND_HOST in .env}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:?Set BACKEND_CORS_ORIGINS in .env}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      FIRST_SUPERUSER: ${FIRST_SUPERUSER:?Set FIRST_SUPERUSER in .env}
+      FIRST_SUPERUSER_PASSWORD: ${FIRST_SUPERUSER_PASSWORD:?Set FIRST_SUPERUSER_PASSWORD in .env}
       POSTGRES_SERVER: db
       POSTGRES_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB:-shop_meraj}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changethis}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
@@ -45,11 +43,11 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SENTRY_DSN: ${SENTRY_DSN:-}
       MEDIA_ROOT: /app/media
-      MEDIA_URL: /media
+      MEDIA_URL: ${MEDIA_URL:-/media}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_OWNER_CHAT_ID: ${TELEGRAM_OWNER_CHAT_ID:-}
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - media_data:/app/media
     healthcheck:
