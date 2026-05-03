@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.models import (
     Category,
     DeliveryPlace,
+    Order,
     OrderStatus,
     OrderStatusHistory,
     Product,
@@ -102,10 +103,12 @@ def _create_order(
     customer_name: str = "Workflow Test Customer",
     customer_phone: str = "+93000000000",
     customer_telegram: str = "@workflow_test",
+    headers: dict[str, str] | None = None,
 ) -> dict[str, object]:
     with patch("app.api.routes.catalog.send_order_notification"):
         response = client.post(
             f"{settings.API_V1_STR}/catalog/orders",
+            headers=headers,
             json=_order_payload(
                 product=product,
                 delivery_place=delivery_place,
@@ -156,6 +159,99 @@ def test_create_order_reduces_stock_and_records_initial_history(
     assert len(history) == 1
     assert history[0].old_status is None
     assert history[0].new_status == OrderStatus.new
+
+
+def test_authenticated_order_is_linked_to_current_user(
+    client: TestClient,
+    db: Session,
+    normal_user_token_headers: dict[str, str],
+) -> None:
+    product, delivery_place = _create_shop_data(db, stock_quantity=5)
+
+    order = _create_order(
+        client,
+        product=product,
+        delivery_place=delivery_place,
+        quantity=1,
+        headers=normal_user_token_headers,
+    )
+
+    assert order["user_id"] is not None
+
+    db.expire_all()
+    db_order = db.get(Order, uuid.UUID(str(order["id"])))
+    assert db_order
+    assert str(db_order.user_id) == order["user_id"]
+
+
+def test_guest_order_is_not_linked_to_user(
+    client: TestClient,
+    db: Session,
+) -> None:
+    product, delivery_place = _create_shop_data(db, stock_quantity=5)
+
+    order = _create_order(
+        client,
+        product=product,
+        delivery_place=delivery_place,
+        quantity=1,
+    )
+
+    assert order["user_id"] is None
+
+    db.expire_all()
+    db_order = db.get(Order, uuid.UUID(str(order["id"])))
+    assert db_order
+    assert db_order.user_id is None
+
+
+def test_current_user_can_read_only_own_orders(
+    client: TestClient,
+    db: Session,
+    normal_user_token_headers: dict[str, str],
+) -> None:
+    product, delivery_place = _create_shop_data(db, stock_quantity=5)
+    owned_order = _create_order(
+        client,
+        product=product,
+        delivery_place=delivery_place,
+        quantity=1,
+        headers=normal_user_token_headers,
+    )
+    guest_order = _create_order(
+        client,
+        product=product,
+        delivery_place=delivery_place,
+        quantity=1,
+    )
+
+    list_response = client.get(
+        f"{settings.API_V1_STR}/catalog/orders/me",
+        headers=normal_user_token_headers,
+    )
+    assert list_response.status_code == 200
+    orders = list_response.json()
+    order_ids = [order["id"] for order in orders["data"]]
+    assert owned_order["id"] in order_ids
+    assert guest_order["id"] not in order_ids
+
+    detail_response = client.get(
+        f"{settings.API_V1_STR}/catalog/orders/me/{owned_order['id']}",
+        headers=normal_user_token_headers,
+    )
+    assert detail_response.status_code == 200
+    assert detail_response.json()["id"] == owned_order["id"]
+
+    forbidden_detail_response = client.get(
+        f"{settings.API_V1_STR}/catalog/orders/me/{guest_order['id']}",
+        headers=normal_user_token_headers,
+    )
+    assert forbidden_detail_response.status_code == 404
+
+
+def test_my_orders_requires_authentication(client: TestClient) -> None:
+    response = client.get(f"{settings.API_V1_STR}/catalog/orders/me")
+    assert response.status_code == 401
 
 
 def test_cancel_order_returns_stock_only_once(

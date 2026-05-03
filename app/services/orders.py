@@ -125,7 +125,9 @@ def build_order_quote(*, session: Session, order_in: OrderCreate) -> OrderQuoteP
     )
 
 
-def create_order_from_cart(*, session: Session, order_in: OrderCreate) -> Order:
+def create_order_from_cart(
+    *, session: Session, order_in: OrderCreate, user_id: uuid.UUID | None = None
+) -> Order:
     quote = build_order_quote(session=session, order_in=order_in)
 
     product_ids = [item.product_id for item in order_in.items]
@@ -160,6 +162,7 @@ def create_order_from_cart(*, session: Session, order_in: OrderCreate) -> Order:
         )
 
     order = Order(
+        user_id=user_id,
         order_number=_next_order_number(),
         customer_name=order_in.customer_name,
         customer_phone=order_in.customer_phone,

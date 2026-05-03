@@ -72,6 +72,7 @@ class User(UserBase, table=True):
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
     )
+    orders: list["Order"] = Relationship(back_populates="user")
 
 
 class UserPublic(UserBase):
@@ -341,6 +342,7 @@ class Order(OrderBase, table=True):
     __tablename__ = "shop_order"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    user_id: uuid.UUID | None = Field(default=None, foreign_key="user.id", index=True)
     order_number: str = Field(unique=True, index=True, max_length=32)
     status: OrderStatus = Field(
         default=OrderStatus.new,
@@ -364,6 +366,7 @@ class Order(OrderBase, table=True):
         sa_type=DateTime(timezone=True),  # type: ignore
     )
     delivery_place: DeliveryPlace | None = Relationship(back_populates="orders")
+    user: User | None = Relationship(back_populates="orders")
     items: list["OrderItem"] = Relationship(back_populates="order", cascade_delete=True)
     status_history: list["OrderStatusHistory"] = Relationship(
         back_populates="order", cascade_delete=True
@@ -463,6 +466,7 @@ class OrderStatusHistoryPublic(SQLModel):
 
 class OrderPublic(OrderBase):
     id: uuid.UUID
+    user_id: uuid.UUID | None = None
     order_number: str
     status: OrderStatus
     admin_comment: str | None = None

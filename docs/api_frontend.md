@@ -104,13 +104,34 @@ POST /api/v1/catalog/orders
 Content-Type: application/json
 ```
 
-Payload is the same as quote.
+Payload is the same as quote. `Authorization: Bearer <token>` is optional:
+
+- with a valid token, the order is linked to the current user and response includes `user_id`;
+- without a token, the order is created as a guest order and `user_id` is `null`.
 
 Important responses:
 
 - `200`: order created;
 - `404`: product or delivery place not found/inactive;
 - `409`: not enough stock.
+
+### Customer order history
+
+Requires a customer token from `POST /api/v1/login/access-token`.
+
+```http
+GET /api/v1/catalog/orders/me?skip=0&limit=100
+Authorization: Bearer <token>
+```
+
+Returns only orders linked to the current user, newest first.
+
+```http
+GET /api/v1/catalog/orders/me/{order_id}
+Authorization: Bearer <token>
+```
+
+Returns `404` when the order does not belong to the current user.
 
 ## Admin Auth
 

@@ -1,10 +1,10 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from sqlmodel import col, func, or_, select
 
-from app.api.deps import SessionDep
+from app.api.deps import CurrentUser, OptionalCurrentUser, SessionDep
 from app.models import (
     CatalogBootstrapPublic,
     CatalogCategoryPublic,
@@ -17,9 +17,11 @@ from app.models import (
     DeliveryPlace,
     DeliveryPlacesPublic,
     LanguageCode,
+    Order,
     OrderCreate,
     OrderPublic,
     OrderQuotePublic,
+    OrdersPublic,
     Product,
     ProductsPublic,
 )
@@ -317,13 +319,50 @@ def quote_public_order(session: SessionDep, order_in: OrderCreate) -> OrderQuote
     return build_order_quote(session=session, order_in=order_in)
 
 
+@router.get("/orders/me", response_model=OrdersPublic)
+def read_my_orders(
+    session: SessionDep,
+    current_user: CurrentUser,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+) -> OrdersPublic:
+    count = session.exec(
+        select(func.count()).select_from(Order).where(Order.user_id == current_user.id)
+    ).one()
+    statement = (
+        select(Order)
+        .where(Order.user_id == current_user.id)
+        .order_by(col(Order.created_at).desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    return OrdersPublic(data=session.exec(statement).all(), count=count)
+
+
+@router.get("/orders/me/{order_id}", response_model=OrderPublic)
+def read_my_order(
+    session: SessionDep,
+    current_user: CurrentUser,
+    order_id: uuid.UUID,
+) -> OrderPublic:
+    order = session.get(Order, order_id)
+    if not order or order.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return OrderPublic.model_validate(order)
+
+
 @router.post("/orders", response_model=OrderPublic)
 async def create_public_order(
     session: SessionDep,
     background_tasks: BackgroundTasks,
     order_in: OrderCreate,
+    current_user: OptionalCurrentUser,
 ) -> OrderPublic:
-    order = create_order_from_cart(session=session, order_in=order_in)
+    order = create_order_from_cart(
+        session=session,
+        order_in=order_in,
+        user_id=current_user.id if current_user else None,
+    )
     _ = order.items
     background_tasks.add_task(send_order_notification, order)
     await order_connection_manager.broadcast(
